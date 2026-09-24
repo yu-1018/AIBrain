@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIBrain 记忆库</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    color: #2b2b2b;
+    background: #fafafa;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .app { display: flex; flex-direction: column; height: 100%; }
+
+  /* 顶栏 */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    background: #ffffff;
+    border-bottom: 1px solid #ececec;
+  }
+  .topbar .title { font-size: 16px; font-weight: 600; color: #1a1a1a; }
+  .topbar .title small { font-weight: 400; color: #999; margin-left: 8px; font-size: 12px; }
+  .actions { display: flex; align-items: center; gap: 12px; }
+  .status { font-size: 12px; color: #999; min-width: 120px; text-align: right; }
+  .btn {
+    border: 1px solid #e0e0e0;
+    background: #ffffff;
+    color: #333;
+    padding: 7px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .btn:hover { background: #f5f5f5; }
+  .btn.primary { background: #2b2b2b; color: #fff; border-color: #2b2b2b; }
+  .btn.primary:hover { background: #1a1a1a; }
+
+  /* 主体 */
+  .main { flex: 1; display: flex; overflow: hidden; }
+
+  /* 左栏 */
+  .sidebar {
+    width: 260px;
+    background: #ffffff;
+    border-right: 1px solid #ececec;
+    overflow-y: auto;
+    padding: 16px 0;
+  }
+  .sidebar .group-title {
+    padding: 8px 24px;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #aaa;
+    text-transform: uppercase;
+  }
+  .file-item {
+    padding: 9px 24px;
+    cursor: pointer;
+    color: #444;
+    border-left: 2px solid transparent;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-item:hover { background: #f7f7f7; }
+  .file-item.active { background: #f0f0f0; border-left-color: #2b2b2b; color: #1a1a1a; }
+
+  /* 右栏 */
+  .editor-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .pane-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 24px;
+    border-bottom: 1px solid #ececec;
+    background: #fcfcfc;
+  }
+  .pane-toolbar .filename { font-size: 13px; color: #555; }
+  .view-tabs { display: flex; gap: 4px; }
+  .view-tab {
+    padding: 5px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #777;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+    border-radius: 6px;
+  }
+  .view-tab.active { background: #2b2b2b; color: #fff; border-color: #2b2b2b; }
+
+  .pane-body { flex: 1; overflow: hidden; position: relative; }
+  #editor {
+    width: 100%;
+    height: 100%;
+    border: none;
+    outline: none;
+    resize: none;
+    padding: 28px 32px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #333;
+    background: #ffffff;
+  }
+  #preview {
+    display: none;
+    height: 100%;
+    overflow-y: auto;
+    padding: 28px 40px;
+    background: #ffffff;
+  }
+  #preview h1, #preview h2, #preview h3 { margin: 18px 0 10px; font-weight: 600; }
+  #preview h1 { font-size: 22px; }
+  #preview h2 { font-size: 18px; }
+  #preview p { margin: 10px 0; }
+  #preview code {
+    background: #f2f2f2; padding: 2px 6px; border-radius: 4px;
+    font-family: Consolas, monospace; font-size: 12px;
+  }
+  #preview pre {
+    background: #f7f7f7; padding: 14px; border-radius: 6px;
+    overflow-x: auto; margin: 12px 0;
+  }
+  #preview pre.compile {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: Consolas, "SFMono-Regular", monospace;
+    font-size: 12px;
+    color: #333;
+  }
+  #preview ul, #preview ol { margin: 10px 0 10px 24px; }
+  #preview blockquote {
+    border-left: 3px solid #e0e0e0; padding-left: 14px; color: #777; margin: 12px 0;
+  }
+  #preview a { color: #2b2b2b; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="title">AIBrain <small>个人记忆库</small></div>
+    <div class="actions">
+      <span class="status" id="status">连接中…</span>
+      <button class="btn" id="btnDetect">检测本机 AI 数据</button>
+      <button class="btn" id="btnIngest">导入 inbox</button>
+      <button class="btn" id="btnSave">保存</button>
+      <button class="btn primary" id="btnCompile">编译记忆</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <aside class="sidebar" id="sidebar">
+      <div class="group-title">memory</div>
+      <div class="file-item" id="loadingTip" style="color:#aaa;">加载中…</div>
+    </aside>
+
+    <section class="editor-pane">
+      <div class="pane-toolbar">
+        <span class="filename" id="filename"></span>
+        <div class="view-tabs">
+          <span class="view-tab active" id="tabEdit">编辑</span>
+          <span class="view-tab" id="tabPreview">预览</span>
+        </div>
+      </div>
+      <div class="pane-body">
+        <textarea id="editor" placeholder="在此编辑 Markdown 内容……"></textarea>
+        <div id="preview"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+  // ===== 元素引用 =====
+  var sidebar = document.getElementById("sidebar");
+  var editor = document.getElementById("editor");
+  var preview = document.getElementById("preview");
+  var filenameEl = document.getElementById("filename");
+  var statusEl = document.getElementById("status");
+  var tabEdit = document.getElementById("tabEdit");
+  var tabPreview = document.getElementById("tabPreview");
+  var btnSave = document.getElementById("btnSave");
+  var btnCompile = document.getElementById("btnCompile");
+  var btnDetect = document.getElementById("btnDetect");
+  var btnIngest = document.getElementById("btnIngest");
+
+  // ===== 状态 =====
+  var currentFile = null;     // 当前打开文件的相对路径，如 memory/profile.md
+  var dirty = false;          // 是否有未保存改动
+  var previewMode = "markdown"; // 预览区模式：markdown | compile
+  var compileOutput = "";     // 最近一次编译输出
+
+  function setStatus(msg) { statusEl.textContent = msg; }
+
+  function setDirty(d) {
+    dirty = d;
+    filenameEl.textContent = (currentFile || "") + (d ? " *" : "");
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function highlightActive(file) {
+    document.querySelectorAll(".file-item").forEach(function (el) {
+      el.classList.toggle("active", el.getAttribute("data-file") === file);
+    });
+  }
+
+  // ===== 左栏：按 memory/ 与 knowledge/ 分组渲染文件列表 =====
+  function renderSidebar(files) {
+    sidebar.innerHTML = "";
+    var groups = { "memory": [], "knowledge": [] };
+    (files || []).forEach(function (f) {
+      if (f.indexOf("memory/") === 0) groups["memory"].push(f);
+      else if (f.indexOf("knowledge/") === 0) groups["knowledge"].push(f);
+    });
+
+    ["memory", "knowledge"].forEach(function (prefix) {
+      var list = groups[prefix];
+      if (!list.length) return;
+      var title = document.createElement("div");
+      title.className = "group-title";
+      title.textContent = prefix;
+      sidebar.appendChild(title);
+
+      list.forEach(function (f) {
+        var item = document.createElement("div");
+        item.className = "file-item";
+        item.setAttribute("data-file", f);
+        // 显示去掉分组前缀后的相对名（如 logs/2026.md），分组标题已说明归属
+        item.textContent = f.slice(prefix.length + 1);
+        sidebar.appendChild(item);
+      });
+    });
+
+    if (!sidebar.children.length) {
+      var tip = document.createElement("div");
+      tip.className = "file-item";
+      tip.style.color = "#aaa";
+      tip.textContent = "暂无文件";
+      sidebar.appendChild(tip);
+    }
+  }
+
+  // ===== 极简 Markdown 预览渲染 =====
+  function renderMarkdown(src) {
+    var html = escapeHtml(src)
+      .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+      .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+      .replace(/^# (.*)$/gm, "<h1>$1</h1>")
+      .replace(/^&gt; (.*)$/gm, "<blockquote>$1</blockquote>")
+      .replace(/^- (.*)$/gm, "<li>$1</li>")
+      .replace(/^\d+\. (.*)$/gm, "<li>$1</li>")
+      .replace(/\n\n/g, "</p><p>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>");
+    return "<p>" + html + "</p>";
+  }
+
+  function renderPreview() {
+    if (previewMode === "compile") {
+      preview.innerHTML = "<h2>编译输出</h2><pre class='compile'>" +
+        escapeHtml(compileOutput || "(无输出)") + "</pre>";
+      return;
+    }
+    preview.innerHTML = renderMarkdown(editor.value);
+  }
+
+  function showPreview() {
+    editor.style.display = "none";
+    preview.style.display = "block";
+    tabPreview.classList.add("active");
+    tabEdit.classList.remove("active");
+    renderPreview();
+  }
+
+  function showEditor() {
+    previewMode = "markdown";
+    preview.style.display = "none";
+    editor.style.display = "block";
+    tabEdit.classList.add("active");
+    tabPreview.classList.remove("active");
+  }
+
+  // ===== 读取并打开文件 =====
+  function loadFile(file) {
+    if (!file) return;
+    currentFile = file;
+    setDirty(false);
+    highlightActive(file);
+    setStatus("加载中… " + file);
+
+    fetch("/api/read?path=" + encodeURIComponent(file))
+      .then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+      })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.d && res.d.error ? res.d.error : ("HTTP " + res.status));
+        editor.value = (res.d && res.d.content) || "";
+        if (preview.style.display === "block") renderPreview();
+        setStatus("已打开 " + file);
+      })
+      .catch(function (err) {
+        editor.value = "";
+        setStatus("读取失败：" + err.message);
+      });
+  }
+
+  // ===== 保存当前文件 =====
+  function saveFile() {
+    if (!currentFile) { setStatus("未打开任何文件"); return; }
+    setStatus("保存中… " + currentFile);
+    fetch("/api/write", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: currentFile, content: editor.value })
+    })
+      .then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+      })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.d && res.d.error ? res.d.error : ("HTTP " + res.status));
+        setDirty(false);
+        setStatus("已保存 " + currentFile);
+      })
+      .catch(function (err) {
+        setStatus("保存失败：" + err.message);
+      });
+  }
+
+  // ===== 编译记忆（sync） =====
+  function compileMemory() {
+    setStatus("编译中…");
+    fetch("/api/sync", { method: "POST" })
+      .then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+      })
+      .then(function (res) {
+        var out = (res.d && res.d.output != null) ? res.d.output
+                : (res.d && res.d.error) ? res.d.error
+                : "";
+        compileOutput = out || "(无输出)";
+        previewMode = "compile";
+        showPreview();
+        setStatus(res.d && res.d.ok ? "编译完成" : "编译失败");
+      })
+      .catch(function (err) {
+        compileOutput = String(err.message || err);
+        previewMode = "compile";
+        showPreview();
+        setStatus("编译失败：" + err.message);
+      });
+  }
+
+  // ===== 检测本机 AI 数据 =====
+  function detectLocal() {
+    setStatus("检测中…");
+    fetch("/api/detect", { method: "POST" })
+      .then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+      })
+      .then(function (res) {
+        var out = (res.d && res.d.output != null) ? res.d.output : "";
+        compileOutput = out || "(无输出)";
+        previewMode = "compile";
+        showPreview();
+        setStatus(res.d && res.d.ok ? "检测完成（见预览）" : "检测失败");
+      })
+      .catch(function (err) {
+        compileOutput = String(err.message || err);
+        previewMode = "compile";
+        showPreview();
+        setStatus("检测失败：" + err.message);
+      });
+  }
+
+  // ===== 导入 inbox（先确认） =====
+  function ingestInbox() {
+    if (!window.confirm(
+      "将把 inbox 下的导出内容合并进记忆库，建议先看检测报告（detected.md）。\n\n"
+      + "确定要继续吗？")) {
+      return;
+    }
+    setStatus("导入中…");
+    fetch("/api/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dry_run: false })
+    })
+      .then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+      })
+      .then(function (res) {
+        var out = (res.d && res.d.output != null) ? res.d.output : "";
+        compileOutput = out || "(无输出)";
+        previewMode = "compile";
+        showPreview();
+        setStatus(res.d && res.d.ok ? "导入完成（见预览）" : "导入失败");
+      })
+      .catch(function (err) {
+        compileOutput = String(err.message || err);
+        previewMode = "compile";
+        showPreview();
+        setStatus("导入失败：" + err.message);
+      });
+  }
+
+  // ===== 事件绑定 =====
+  sidebar.addEventListener("click", function (e) {
+    var item = e.target.closest(".file-item");
+    if (item && item.getAttribute("data-file")) {
+      loadFile(item.getAttribute("data-file"));
+    }
+  });
+
+  editor.addEventListener("input", function () {
+    if (!dirty && currentFile) setDirty(true);
+  });
+
+  tabEdit.addEventListener("click", showEditor);
+  tabPreview.addEventListener("click", function () {
+    previewMode = "markdown";
+    showPreview();
+  });
+
+  btnSave.addEventListener("click", saveFile);
+  btnCompile.addEventListener("click", compileMemory);
+  btnDetect.addEventListener("click", detectLocal);
+  btnIngest.addEventListener("click", ingestInbox);
+
+  // ===== 启动：拉取文件列表并默认打开第一个 =====
+  function boot() {
+    fetch("/api/list")
+      .then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+      })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        var files = (res.d && res.d.files) || [];
+        renderSidebar(files);
+        if (files.length) {
+          // 优先打开 memory/profile.md，否则取列表第一个
+          var first = files.indexOf("memory/profile.md") >= 0
+            ? "memory/profile.md" : files[0];
+          loadFile(first);
+        } else {
+          setStatus("暂无文件");
+        }
+      })
+      .catch(function (err) {
+        setStatus("列表加载失败：" + err.message);
+      });
+  }
+
+  boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+# 脚本产物，每次编译都会重写
+dist/
+
+# 个人日志，不入库
+memory/logs/
+
+# 编辑器 / 系统噪音
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.trash/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 临时文件
+*.tmp
+*.bak
+__pycache__/
+*.pyc
+
+# 收件箱：含个人导出数据，不入库（保留使用说明 README.md）
+inbox/*
+!inbox/README.md
+
+# 生成标记
+.aibrain-public
