@@ -5,7 +5,8 @@
 默认情况下，各个 AI 应用各记各的，**不会自动共享**。
 这个脚本是那座桥，只用两个动作就把它们接起来：
 
-    push   把 AIBrain 编译产物（dist/portable-full.md）注入每个应用自己的记忆文件，
+    push   把 AIBrain 编译产物（默认 dist/portable-inject.md，按上下文长度调优，
+           确保不被截断）注入每个应用自己的记忆文件，
            包在 <!-- AIBrain:begin --> ... <!-- AIBrain:end --> 标记里。
            应用下次启动自动读自己的记忆文件 → 就等于读到了 AIBrain。
            可反复重跑：区块内整体替换，不会越滚越长。
@@ -38,6 +39,12 @@ import subprocess
 import sys
 from datetime import date, datetime
 from pathlib import Path
+
+try:
+    from textfilter import is_template_junk
+except ImportError:  # 只有本脚本被单独拷走时才会发生；降级为不过滤，不影响主流程
+    def is_template_junk(line: str) -> bool:  # type: ignore[misc]
+        return False
 
 ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "dist"
@@ -165,13 +172,18 @@ def corpus_lines() -> list[str]:
     return [x for x in out if len(x) >= 4]
 
 
-def source_lines(path: Path) -> list[str]:
-    """从一个应用文件里抽取候选条目（跳过标记区块、标题、表格、代码）。"""
+def source_lines(path: Path) -> tuple[list[str], int]:
+    """从一个应用文件里抽取候选条目，返回 (候选, 被丢弃的模板行数)。
+
+    跳过标记区块、标题、表格、代码；模板占位行（见 tools/textfilter.py）
+    在抽取阶段直接丢掉——判重拦不住它们。
+    """
     text = read(path)
     reg = region_of(text)
     if reg:
         text = text[: reg[0]] + text[reg[1]:]
     out: list[str] = []
+    junk = 0
     for raw in text.splitlines():
         if SKIP_LINE_RE.match(raw):
             continue
@@ -179,9 +191,12 @@ def source_lines(path: Path) -> list[str]:
         if not m:
             continue
         s = normalize(m.group(1))
+        if is_template_junk(s):
+            junk += 1
+            continue
         if 6 <= len(s) <= 300:
             out.append(s)
-    return out
+    return out, junk
 
 
 # ------------------------------------------------------------------ push
@@ -196,8 +211,16 @@ def run_sync() -> None:
         print(f"[提醒] 自动编译失败（{exc}），改用已有的 dist/ 产物。")
 
 
+DIGEST_CHOICES: dict[str, tuple[str, str]] = {
+    "inject": ("portable-inject.md", "注入版"),
+    "full": ("portable-full.md", "完整版"),
+    "compact": ("portable-compact.md", "精简版"),
+}
+
+
 def cmd_push(args) -> int:
-    digest_name = "portable-compact.md" if args.compact else "portable-full.md"
+    which = "full" if args.full else ("compact" if args.compact else "inject")
+    digest_name, digest_label = DIGEST_CHOICES[which]
     digest_path = DIST / digest_name
     if not args.dry_run:
         print("先跑 tools/sync.py 刷新编译产物：")
@@ -207,7 +230,7 @@ def cmd_push(args) -> int:
         return 1
 
     digest = read(digest_path)
-    block = make_block(digest, "完整版" if not args.compact else "精简版")
+    block = make_block(digest, digest_label)
     print(f"\n注入内容：{digest_name}（区块 {len(block)} 字符）"
           + ("　[dry-run 不写文件]" if args.dry_run else ""))
 
@@ -273,6 +296,7 @@ def cmd_pull(args) -> int:
     print(f"AIBrain 现有条目 {len(known)} 条，用来判重。\n")
 
     blocks: list[tuple[str, Path, list[str]]] = []
+    junk_total = 0
     for app in APPS:
         if args.app and app["key"] != args.app:
             continue
@@ -280,8 +304,10 @@ def cmd_pull(args) -> int:
         for src in sources:
             if not src.is_file():
                 continue
+            candidates, junk = source_lines(src)
+            junk_total += junk
             fresh: list[str] = []
-            for line in source_lines(src):
+            for line in candidates:
                 if len(line) < 8 or is_duplicate(line, known_set, known):
                     continue
                 if line in fresh:
@@ -289,6 +315,10 @@ def cmd_pull(args) -> int:
                 fresh.append(line)
             if fresh:
                 blocks.append((app["name"], src, fresh))
+
+    if junk_total:
+        print(f"已自动略过 {junk_total} 行应用自带的模板占位行"
+              f"（Occupation / Pronouns / Bootstrapping 之类，见 tools/textfilter.py）。\n")
 
     total = sum(len(b[2]) for b in blocks)
     if not blocks:
@@ -300,8 +330,10 @@ def cmd_pull(args) -> int:
         f"# 从本机应用捞回的候选条目（{date.today().isoformat()}）",
         "",
         "> 由 `tools/bridge.py pull` 生成。下面是「应用里写过、AIBrain 里还没有」的条目。",
-        "> **这些条目没有自动入库**。复核后：有用的复制进 `memory/` 对应文件；",
+        "> **这些条目没有自动入库**。复核后：有用的按「蒸馏」方式并进 `memory/` 对应文件；",
         "> 或保持本文件在 `inbox/` 里，跑 `python tools/ingest.py` 让脚本分类合并（inbox 不入 git）。",
+        "> 应用自带的模板占位行（`Occupation`、`Pronouns: _(optional)_` 之类）已在抽取阶段自动略过；",
+        "> 那类字段的信息请直接用我们自己的措辞写进 `memory/profile.md`，不要照抄应用的骨架。",
         "",
     ]
     for app_name, src, fresh in blocks:
@@ -365,7 +397,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="AIBrain 与本机 Agent 应用的双向桥")
     ap.add_argument("action", choices=["push", "pull", "status"], help="要做的动作")
     ap.add_argument("--app", help="只处理某个应用（workbuddy / lobsterai）")
-    ap.add_argument("--compact", action="store_true", help="push 时用精简版（省上下文）")
+    ap.add_argument("--compact", action="store_true", help="push 时用精简版（内容最少）")
+    ap.add_argument("--full", action="store_true", help="push 时用完整版（内容最全，但会被上下文截断）")
     ap.add_argument("--dry-run", action="store_true", help="只预览，不写文件")
     args = ap.parse_args()
 

@@ -37,8 +37,29 @@ SOURCES: list[tuple[str, str]] = [
 # 各档的字符上限。None = 不限制。
 LIMITS: dict[str, int | None] = {
     "portable-full.md": None,
+    "portable-inject.md": 2750,
     "portable-compact.md": 1500,
     "portable-micro.md": 500,
+}
+
+# 注入档的编译顺序与每节保留条数（99 = 全留）。
+# 排序原则：越靠前越关键 —— 万一还是被截断，丢掉的是最不重要的那部分。
+# 实测：WorkBuddy 注入上限约 4000 字符，本机手写备忘占 1000，留给本区块的约 2900；
+# 再扣掉 bridge.py 的标记与说明行，正文安全线取 2750。
+INJECT_ORDER: list[tuple[str, str, int]] = [
+    ("preferences.md", "我的偏好与习惯", 99),
+    ("machine.md", "这台电脑的环境事实", 99),
+    ("profile.md", "关于我", 2),
+    ("commitments.md", "我正在做的事", 1),
+]
+# 说明：decisions.md 不进注入档。它记的是「当初为什么这么定」，属于背景知识；
+# 其中真正约束行为的部分（不付费、不买服务器、对外发送要先确认等）已经在
+# preferences 的禁止事项与 profile 的红线里。需要决策细节时按「完整记忆在哪」去读原文件。
+
+# 注入档里整节丢弃的小节：已在别处覆盖，或太占地方。
+INJECT_DROP: dict[str, set[str]] = {
+    "profile.md": {"常用环境与工具"},
+    "machine.md": {"账号与凭证（只记位置，不记密码）", "记忆库自己的运维入口（AIBrain）"},
 }
 
 # 源文件里「写给维护者看」的小节，编译进精简版时整节丢弃。
@@ -148,7 +169,7 @@ def summarize(text: str, per_section: int = 1) -> str:
             if _is_sep(line):
                 continue
             data_rows += 1
-            if used < per_section and data_rows == 1:
+            if data_rows <= per_section:
                 out.append(line)
                 used += 1
             continue
@@ -184,6 +205,28 @@ def summarize(text: str, per_section: int = 1) -> str:
                 continue
         cleaned.append(line)
     return "\n".join(cleaned).strip()
+
+
+def drop_sections(text: str, titles: set[str]) -> str:
+    """整节丢弃指定标题的小节（含其下属内容）。用于注入档瘦身。"""
+    if not titles:
+        return text
+    out: list[str] = []
+    skip_level = 0
+    for raw in text.splitlines():
+        line = raw.rstrip()
+        level, title = _heading(line.strip())
+        if level:
+            if skip_level and level > skip_level:
+                continue
+            skip_level = 0
+            if title in titles:
+                skip_level = level
+                continue
+        if skip_level:
+            continue
+        out.append(line)
+    return "\n".join(out)
 
 
 def truncate(text: str, limit: int | None) -> str:
@@ -226,6 +269,28 @@ def build_full() -> str:
         parts.append(f"## 我的资料库索引\n\n{index}")
 
     return "\n\n---\n\n".join(parts) + "\n"
+
+
+def build_inject() -> str:
+    """每次会话自动注入用：行为规则与环境坑全留，背景压缩，确保不被截断。"""
+    parts = [
+        header(
+            "我的个人档案（注入版）",
+            "用途：注入本机 Agent（WorkBuddy / LobsterAI）每次启动必读的记忆文件。",
+        ),
+        f"## 完整记忆在哪\n\n"
+        f"- 唯一事实来源：`{ROOT}`；需要细节先读该目录下的 `AGENTS.md`（内含按需读取规则与文件索引）\n"
+        "- 本区块是压缩摘要：`knowledge/` 下的长文与 `memory/logs/` 日志未同步，需要时去读原文件",
+    ]
+    for name, label, depth in INJECT_ORDER:
+        body = source_body(name, strip_meta=True)
+        body = drop_sections(body, INJECT_DROP.get(name, set()))
+        body = summarize(body, per_section=depth)
+        if body:
+            parts.append(f"## {label}\n\n{body}")
+
+    text = "\n\n".join(parts) + "\n"
+    return truncate(text, LIMITS["portable-inject.md"])
 
 
 def build_compact() -> str:
@@ -274,6 +339,7 @@ def main() -> int:
 
     products = {
         "portable-full.md": build_full(),
+        "portable-inject.md": build_inject(),
         "portable-compact.md": build_compact(),
         "portable-micro.md": build_micro(),
     }

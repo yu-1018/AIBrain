@@ -35,6 +35,12 @@ NOTES = KNOWLEDGE / "notes"
 INBOX = ROOT / "inbox"
 SYNC = Path(__file__).resolve().parent / "sync.py"
 
+try:
+    from textfilter import is_template_junk
+except ImportError:  # 只有本脚本被单独拷走时才会发生；降级为不过滤
+    def is_template_junk(line: str) -> bool:  # type: ignore[misc]
+        return False
+
 # inbox 内不参与导入的文件
 SKIP_FILES = {"detected.md", "README.md"}
 
@@ -97,8 +103,8 @@ def extract_entries(text: str) -> list[str]:
         # ## 小节下的普通内容行也算一条
         if current_h2:
             entries.append(line.strip())
-    # 过滤过短/纯空白
-    return [e for e in entries if len(e) >= 2]
+    # 过滤过短/占位/模板骨架（见 tools/textfilter.py）
+    return [e for e in entries if len(e) >= 2 and not is_template_junk(e)]
 
 
 def extract_from_json(obj) -> list[str]:
