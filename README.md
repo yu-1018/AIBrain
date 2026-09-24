@@ -29,6 +29,7 @@ AIBrain/
 │   ├── people.md           重要的人与关系
 │   ├── commitments.md      进行中的事
 │   ├── decisions.md        已定的决策与理由
+│   ├── machine.md          这台电脑的环境事实（路径、终端坑）
 │   └── logs/               按天追加的工作日志（不入公开库）
 ├── knowledge/           ← 资料库：外部知识与你沉淀的资料
 │   ├── index.md            资料总索引（AI 先读它再定位）
@@ -41,6 +42,7 @@ AIBrain/
 ├── inbox/               ← 收件箱：其他 AI 导出的记忆文本先丢这里，再导入
 ├── adapters/            ← 对外接口
 │   ├── README.md           各平台怎么挂载（ChatGPT / Claude / 豆包 / Cursor …）
+│   ├── 双向共享.md         和本机的 Agent 应用（WorkBuddy / LobsterAI）自动互通
 │   └── memory-import.md    怎么把其他 AI 的记忆搬进来
 ├── web/index.html       ← 本地网页界面（左侧文件列表 + 右侧编辑 + 一键编译）
 ├── tools/
@@ -48,6 +50,7 @@ AIBrain/
 │   ├── serve.py            本地服务器：把网页跑起来（默认 127.0.0.1:8420）
 │   ├── detect.py           检测本机有哪些 AI 数据可以接入
 │   ├── ingest.py           把 inbox/ 里的导出内容合并进记忆库
+│   ├── bridge.py           双向桥：和本机的 Agent 应用互换记忆
 │   ├── publish_check.py    上架前隐私自检
 │   └── make_public.py      一键生成可公开发布的干净包
 ├── example/             ← 虚构示例（公开模板用，不是你的真实数据）
@@ -103,6 +106,20 @@ python tools/ingest.py            # 正式导入，并自动重跑编译
 详细流程、各平台操作要点见 `adapters/memory-import.md`。
 
 > ⚠️ 不要把密码、身份证、银行卡、他人隐私粘进 `inbox/`——这些内容会进仓库。
+
+## 和本机的 Agent 应用双向共享
+
+装在电脑上的 Agent（WorkBuddy、LobsterAI 等）各有各的记忆目录，**默认互不相通**。
+`tools/bridge.py` 把它们接起来：把编译好的记忆注入各应用启动时必读的那个文件（带标记区块，可反复重跑），
+也能反向把应用里新写的条目捞成候选清单，等你复核。
+
+```bash
+python tools/bridge.py status   # 看接上没有
+python tools/bridge.py push     # 把 AIBrain 推给所有已配置的应用
+python tools/bridge.py pull     # 把应用里的新记忆捞回 inbox/（不自动入库）
+```
+
+要接一个新应用，在 `tools/bridge.py` 的 `APPS` 列表里加一条路径即可。原理与注意事项见 `adapters/双向共享.md`。
 
 ## 同步到其他设备
 

@@ -21,6 +21,7 @@
 | `memory/people.md` | 重要的人、关系、各自在意什么 | 涉及具体的人 |
 | `memory/commitments.md` | 进行中的事、下一步、截止时间 | 涉及进度与计划 |
 | `memory/decisions.md` | 已定决策 + 原因 + 被否掉的备选 | 涉及方案选择 |
+| `memory/machine.md` | 这台电脑的环境事实：常用路径、终端/系统的坑 | 要在这台机器上动手前 |
 | `memory/logs/` | 按天追加的工作日志 | 追溯某天做了什么 |
 | `knowledge/index.md` | 资料库总索引 | 需要找资料时先读这个 |
 | `knowledge/links.md` | 常用网站、工具、文档入口 | 需要外部资源 |
@@ -35,6 +36,7 @@
 | `python tools/serve.py` | 启动本地网页界面（127.0.0.1:8420）供浏览编辑 |
 | `python tools/detect.py` | 只读检测本机有哪些 AI 数据可接入 |
 | `python tools/ingest.py [--dry-run]` | 把 `inbox/` 里的导出内容并入记忆库 |
+| `python tools/bridge.py push` | 把记忆注入本机 Agent 应用（WorkBuddy / LobsterAI）的记忆文件，实现双向共享 |
 | `python tools/publish_check.py` | 上架公开前的隐私自检 |
 | `python tools/make_public.py` | 生成剥离了个人内容的公开发布包 |
 

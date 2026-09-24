@@ -29,6 +29,7 @@ AIBrain/
 │   ├── people.md           Important people & relationships
 │   ├── commitments.md      Ongoing things
 │   ├── decisions.md        Decisions & reasons
+│   ├── machine.md          Facts about this machine (paths, terminal quirks)
 │   └── logs/               Daily work logs (kept out of public repos)
 ├── knowledge/           ← Knowledge: external & your notes
 │   ├── index.md            Master index (read first)
@@ -41,6 +42,7 @@ AIBrain/
 ├── inbox/               ← Drop exported memory text from other AIs here
 ├── adapters/            ← Integration guides
 │   ├── README.md           How to mount on each platform
+│   ├── 双向共享.md         Two-way bridge for local agent apps (Chinese)
 │   └── memory-import.md    How to migrate memory out of other AIs
 ├── web/index.html       ← Local web UI (file list + editor + one-click build)
 ├── tools/
@@ -48,6 +50,7 @@ AIBrain/
 │   ├── serve.py            Local server for the web UI (127.0.0.1:8420)
 │   ├── detect.py           Scan this machine for importable AI data
 │   ├── ingest.py           Merge inbox/ exports into your memory
+│   ├── bridge.py           Two-way bridge: share memory with local agent apps
 │   ├── publish_check.py    Pre-publish privacy check
 │   └── make_public.py      Generate a clean publishable package
 ├── example/             ← Fictional samples used by the public template
@@ -98,6 +101,19 @@ python tools/ingest.py           # merge, de-duplicate, rebuild
 Full walkthrough and per-platform notes: `adapters/memory-import.md`.
 
 > Never paste passwords, ID numbers, bank cards, or other people's private data into `inbox/`.
+
+## Two-way sharing with local agent apps
+
+Agents installed on your machine (WorkBuddy, LobsterAI, …) each keep their memory in their own private folder — **they share nothing by default**.
+`tools/bridge.py` connects them: it injects the compiled memory into the file each app reads at startup (inside marked blocks, safe to re-run), and can also pull newly written lines back as a review list.
+
+```bash
+python tools/bridge.py status   # is each app connected?
+python tools/bridge.py push     # inject AIBrain into every configured app
+python tools/bridge.py pull     # pull new app-side lines into inbox/ (never auto-merged)
+```
+
+Add another app by appending one path to the `APPS` list in `tools/bridge.py`. Mechanism and caveats: `adapters/双向共享.md` (Chinese).
 
 ## Sync across devices
 

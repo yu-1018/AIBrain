@@ -30,11 +30,19 @@
 
 ## 三、逐平台配置
 
-### WorkBuddy / CodeBuddy（最省事）
+### WorkBuddy / LobsterAI 等装在电脑上的 Agent（最省事）
 
 方式 ①。在这个文件夹里开对话，Agent 会自动读到根目录的 `AGENTS.md`。
 
-想让它**所有项目**都带上你的画像，就把 `dist/portable-compact.md` 的内容合并进 `<你的用户目录>\.workbuddy\MEMORY.md`（用户级记忆，跨项目生效）。
+想让它**所有项目**都带上你的画像，不用手工复制粘贴——用桥脚本自动注入：
+
+```bash
+python tools/bridge.py push      # 把 AIBrain 注入 WorkBuddy / LobsterAI 各自的记忆文件
+python tools/bridge.py status    # 查看接上没有
+```
+
+原理、支持的应用清单和扩展办法见 [`双向共享.md`](双向共享.md)。手工做法（脚本不适用时）：
+把 `dist/portable-full.md` 的内容追加进 `<你的用户目录>\.workbuddy\MEMORY.md`。
 
 ### Cursor / Claude Code / Windsurf
 
@@ -86,7 +94,8 @@
 
 | 改动 | 要做什么 |
 | --- | --- |
-| Agent 类工具（WorkBuddy / Cursor / Claude Desktop） | 什么都不用做，实时生效 |
+| WorkBuddy / LobsterAI（本机 Agent） | 跑 `python tools\sync.py` 再跑 `python tools\bridge.py push`，下次启动生效 |
+| 其他 Agent 类工具（Cursor / Claude Desktop） | 什么都不用做，实时生效 |
 | ChatGPT / Claude / Gemini / 豆包等项目或智能体 | 重跑 `python tools/sync.py`，重新上传 `portable-full.md`，指令框内容没变就不用动 |
 
 ## 五、一条安全提醒

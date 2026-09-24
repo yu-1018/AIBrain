@@ -22,5 +22,8 @@ __pycache__/
 inbox/*
 !inbox/README.md
 
+# 覆盖别处文件前的自动备份，只留本地
+.backup/
+
 # 生成标记
 .aibrain-public

@@ -31,6 +31,7 @@ SOURCES: list[tuple[str, str]] = [
     ("people.md", "重要的人与关系"),
     ("commitments.md", "我正在做的事"),
     ("decisions.md", "已定的决策与理由"),
+    ("machine.md", "这台电脑的环境事实"),
 ]
 
 # 各档的字符上限。None = 不限制。
